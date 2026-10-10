@@ -1,6 +1,6 @@
 [package]
 name = "shelf"
-version = "0.1.0"
+version = "0.1.1"
 description = "A thoughtful local-first bookmark library"
 authors = ["Shelf"]
 edition = "2021"

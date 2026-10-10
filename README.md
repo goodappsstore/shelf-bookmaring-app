@@ -124,3 +124,15 @@ The application code does not call platform-specific shells or hard-code paths. 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+### Retry a missing tag-triggered release run
+
+If a pushed version tag does not create a GitHub Actions run, manually dispatch
+the release workflow with the existing tag:
+
+```sh
+gh workflow run release.yml --repo goodappsstore/shelf-bookmaring-app --ref main -f release_tag=v0.1.1
+```
+
+Replace `v0.1.1` with the intended existing tag. The workflow verifies that the
+tag exists and checks out that tag for every native build.

@@ -36,6 +36,7 @@ button { color: inherit; }
 .titlebar-caption { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: baseline; gap: 7px; pointer-events: none; white-space: nowrap; }
 .titlebar-caption strong { font: 600 13px/1 Georgia, "Times New Roman", serif; }
 .titlebar-caption span { color: var(--faint); font-size: 10px; letter-spacing: .02em; }
+.titlebar-caption .titlebar-publisher { color: var(--muted); font-size: 11px; font-weight: 400; letter-spacing: normal; }
 .window-controls { margin-left: auto; display: flex; align-items: center; gap: 2px; }
 .window-control { width: 34px; height: 31px; padding: 0; border: 0; border-radius: 8px; display: grid; place-items: center; background: transparent; color: var(--muted); cursor: pointer; app-region: no-drag; transition: background .15s ease, color .15s ease; }
 .window-control:hover { background: #f1ebe4; color: var(--ink); }

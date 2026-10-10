@@ -35,6 +35,10 @@ npm install
 npm run tauri dev
 ```
 
+Shelf's development frontend uses `http://127.0.0.1:1431`, with the port kept
+fixed in Vite and Tauri so other local apps using port 1420 cannot supply Shelf's
+frontend. Restart `tauri dev` after changing either development configuration.
+
 Build a native installer for the current operating system:
 
 ```sh

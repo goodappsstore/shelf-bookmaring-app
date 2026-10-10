@@ -673,7 +673,7 @@ function titlebarHtml(): string {
   return [
     '<header class="window-titlebar" data-platform="', platform, '" data-tauri-drag-region>',
     '<div class="titlebar-leading"><span class="titlebar-mark">', icon("logo"), '</span><span class="titlebar-wordmark">Shelf</span></div>',
-    '<div class="titlebar-caption"><strong>Shelf</strong><span>Bookmark library</span></div>',
+    '<div class="titlebar-caption"><strong>Shelf</strong><span>Bookmark library</span><span class="titlebar-publisher">| GoodApps (hello@goodapps.store)</span></div>',
     '<div class="window-controls" aria-label="Window controls">',
     '<button class="window-control window-control-minimize" data-window-action="minimize" title="Minimize window" aria-label="Minimize window">', icon("window-minimize"), '</button>',
     '<button class="window-control window-control-maximize" data-window-action="maximize" title="', maximizeLabel, '" aria-label="', maximizeLabel, '">', maximizeIcon, '</button>',
@@ -2945,6 +2945,7 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden) void enforceInactivityLock();
 });
 
+render();
 void installWindowCloseGuard();
 void installWindowChromeSync();
 void (async () => {

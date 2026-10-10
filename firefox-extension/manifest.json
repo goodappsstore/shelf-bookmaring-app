@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Shelf bookmark saver",
+  "version": "0.1.0",
+  "description": "Save the current Firefox tab to a locally running Shelf library.",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "action": {
+    "default_title": "Save to Shelf",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "32": "icons/32x32.png",
+      "64": "icons/64x64.png",
+      "128": "icons/128x128.png"
+    }
+  },
+  "icons": {
+    "32": "icons/32x32.png",
+    "64": "icons/64x64.png",
+    "128": "icons/128x128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "shelf-bookmark-saver@shelf.local",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "websiteContent",
+          "websiteActivity"
+        ]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  }
+}

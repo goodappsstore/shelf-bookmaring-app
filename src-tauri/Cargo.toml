@@ -1,0 +1,33 @@
+[package]
+name = "shelf"
+version = "1.1.0"
+description = "A thoughtful local-first bookmark library"
+authors = ["Shelf"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "shelf_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["clock"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "charset", "http2"] }
+scraper = "0.22"
+url = "2"
+csv = "1.3"
+thiserror = "2"
+argon2 = "0.5"
+rand_core = { version = "0.6", features = ["getrandom"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+axum = "0.7"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }

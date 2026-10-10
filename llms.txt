@@ -1,0 +1,739 @@
+# Shelf
+
+> Shelf is a local-first desktop bookmark library for saving, organizing, searching, and preserving the web pages that matter to you. It is designed for personal use on macOS, Windows, and Linux, with no account or hosted library required.
+
+Shelf lets people:
+
+- Save bookmarks with titles, descriptions, site details, cover images, authors, publication dates, notes, favorites, and archive status.
+- Expand reachable short links before saving and avoid duplicate destination URLs.
+- Organize bookmarks with reusable tags and color-coded collections.
+- Search bookmark metadata, tags, collections, notes, and the text of saved pages with typo-tolerant matching.
+- Use `AND`, `OR`, parentheses, `-term` exclusions, and `#tag` terms in searches, then save useful queries for later.
+- Keep local HTML copies of important pages for reading and searching when the live page is unavailable.
+- Track visits, use grid or list views, sort by recency, title, website, or visit frequency, and combine filters for date added, domains through a searchable multi-select, saved copies, favorites, never-opened bookmarks, notes, and missing tags.
+- Import bookmarks from Shelf-compatible CSV files and Raindrop.io exports, and export the library to CSV.
+- Protect in-app access with an optional password and inactivity timeout.
+- Share bookmarks through QR codes, links, or copied bookmark details.
+
+Shelf does not currently provide cloud backup, multi-device synchronization, shared libraries, or collaboration. The optional app lock controls access through Shelf; it does not encrypt the library, saved pages, or exported files on disk.
+
+## Public HTTP API
+
+Shelf has an optional HTTP API for local automation and integrations. The API server is disabled by default and must be enabled in the Shelf desktop app under **Settings → API server**.
+
+Default connection details:
+
+```text
+Base URL: http://localhost:9876/api/v1
+Root discovery: http://localhost:9876/
+```
+
+The listener interface and port can be changed in the desktop settings. The API is a plain, unauthenticated HTTP API: it has no API keys, tokens, TLS, or browser CORS support. Keep it bound to `localhost` unless every device that can reach it is trusted. Passwords sent to a non-local listener are transmitted over plain HTTP.
+
+The API runs on the computer where Shelf is installed. Operations involving storage, CSV import/export, or saved-page capture use that computer's filesystem and network connection, not the API caller's.
+
+## API conventions
+
+- All paths below are relative to `/api/v1` unless stated otherwise.
+- Request and response property names use `camelCase`.
+- JSON request bodies require `content-type: application/json`.
+- Timestamps are RFC 3339 UTC strings, for example `2026-08-14T10:30:00+00:00`.
+- Bookmark and collection identifiers are UUID strings. IDs supplied to create requests are ignored; Shelf generates IDs.
+- Optional response properties are represented as `null` rather than omitted.
+- Successful endpoints return `200 OK`.
+- Most mutation endpoints return the complete current `AppSnapshot`.
+- Bookmark listing uses zero-based offset pagination. `offset` defaults to `0`; `limit` defaults to `100` and may not exceed `1,000`.
+- The desktop filter row runs locally over the current snapshot; `GET /api/v1/bookmarks` does not accept those filters as query parameters. Clients can filter `createdAt` by an inclusive local-calendar date range, OR-match selected `domain` values, and test `archive.htmlAvailable`, `favorite`, `openCount` plus `lastOpenedAt`, non-empty `notes`, or an empty `tags` array. Active criteria combine with AND.
+- Bookmark URLs accept only `http` and `https`, are normalized, and have URL fragments removed.
+- A protected library operation returns `423 Locked` while the app is locked.
+
+## Quick start
+
+```sh
+BASE='http://localhost:9876/api/v1'
+
+# Discover the API
+curl "$BASE"
+
+# Check availability and lock state
+curl "$BASE/health"
+
+# Create a bookmark
+curl -X POST "$BASE/bookmarks" \
+  -H 'content-type: application/json' \
+  -d '{
+    "url": "https://example.com/article",
+    "title": "Example article",
+    "tags": ["reading"],
+    "favorite": true
+  }'
+```
+
+## Endpoint index
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/` | Discover the API from the listener root. |
+| `GET` | `/api/v1` | Discover API v1. |
+| `GET` | `/api/v1/health` | Check API availability and app-lock state. |
+| `GET` | `/api/v1/snapshot` | Read the complete library snapshot. |
+| `GET` | `/api/v1/bookmarks?offset=0&limit=100` | List a page of bookmarks with the total count. |
+| `POST` | `/api/v1/bookmarks` | Create one bookmark. |
+| `POST` | `/api/v1/bookmarks/batch` | Atomically create 1–1,000 bookmarks. |
+| `GET` | `/api/v1/bookmarks/:id` | Read one bookmark. |
+| `PUT` | `/api/v1/bookmarks/:id` | Replace a bookmark's editable fields. |
+| `DELETE` | `/api/v1/bookmarks/:id` | Delete a bookmark and its saved copy. |
+| `PATCH` | `/api/v1/bookmarks/:id/status` | Change favorite/archive flags. |
+| `POST` | `/api/v1/bookmarks/:id/opened` | Record a visit. |
+| `POST` | `/api/v1/metadata` | Fetch URL metadata without saving. |
+| `POST` | `/api/v1/bookmarks/:id/metadata` | Refresh stored bookmark metadata. |
+| `PUT` | `/api/v1/bookmarks/:id/archive` | Capture or refresh a saved HTML copy. |
+| `DELETE` | `/api/v1/bookmarks/:id/archive` | Remove and disable a saved copy. |
+| `GET` | `/api/v1/bookmarks/:id/archive/html` | Read saved HTML and its base URL. |
+| `POST` | `/api/v1/bookmarks/:id/archive/export` | Export saved HTML to a Shelf-host path. |
+| `GET` | `/api/v1/archives/search?q=...` | Search text extracted from saved copies. |
+| `POST` | `/api/v1/archives/process-pending` | Process currently queued saved-copy jobs. |
+| `GET` | `/api/v1/saved-queries` | List saved queries. |
+| `POST` | `/api/v1/saved-queries` | Create a saved query. |
+| `PUT` | `/api/v1/saved-queries/:id` | Replace a saved query. |
+| `DELETE` | `/api/v1/saved-queries/:id` | Delete a saved query. |
+| `GET` | `/api/v1/collections` | List collections. |
+| `POST` | `/api/v1/collections` | Create a collection. |
+| `PUT` | `/api/v1/collections/:id` | Replace a collection. |
+| `DELETE` | `/api/v1/collections/:id` | Delete a collection and detach its bookmarks. |
+| `GET` | `/api/v1/security` | Read app-lock status. |
+| `PUT` | `/api/v1/security` | Enable, update, or remove the app lock. |
+| `POST` | `/api/v1/security/lock` | Lock Shelf immediately. |
+| `POST` | `/api/v1/security/unlock` | Unlock Shelf with its password. |
+| `PUT` | `/api/v1/storage` | Move the active library to a new host location. |
+| `POST` | `/api/v1/import/csv` | Import a CSV file from a Shelf-host path. |
+| `POST` | `/api/v1/export/csv` | Export bookmarks to a Shelf-host path. |
+
+## Common schemas
+
+### BookmarkDraft
+
+Used by `POST /bookmarks` and `PUT /bookmarks/:id`. The `url` field is required; all other fields are optional.
+
+```json
+{
+  "id": null,
+  "url": "https://example.com/article",
+  "title": "Example article",
+  "description": "A useful example.",
+  "imageUrl": "https://example.com/cover.jpg",
+  "faviconUrl": "https://example.com/favicon.ico",
+  "siteName": "Example",
+  "author": "A. Writer",
+  "publishedAt": "2026-08-01",
+  "tags": ["reading", "example"],
+  "collectionId": null,
+  "favorite": false,
+  "archived": false,
+  "notes": "Read chapter two again.",
+  "archiveMode": "none"
+}
+```
+
+Field behavior:
+
+- `title` defaults to the URL domain when absent or blank.
+- Empty `description` and `notes` values become `null`.
+- `tags` defaults to `[]`, and tag values are normalized and deduplicated.
+- An unknown `collectionId` becomes `null`.
+- `favorite` and `archived` default to `false`.
+- `archiveMode` is either `none` or `html`, and defaults to `none`.
+- `id` is ignored on create; the path ID is authoritative on replace.
+
+Create requests also accept these API-only fields:
+
+```json
+{
+  "fetchMetadata": false,
+  "metadataBehavior": "add-new-only"
+}
+```
+
+`fetchMetadata` defaults to `false`. When true, Shelf fetches page metadata before saving. `metadataBehavior` is either `add-new-only` or `override`, and defaults to `add-new-only`:
+
+- `add-new-only` preserves caller-supplied non-blank values and fills only missing metadata.
+- `override` replaces fetched metadata fields, including replacing a supplied value with `null` when the page does not provide one.
+- Metadata fields are `title`, `description`, `imageUrl`, `faviconUrl`, `siteName`, `author`, and `publishedAt`.
+- Tags, collection, favorite/archive state, notes, and saved-copy mode always remain caller-controlled.
+
+### Bookmark
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "url": "https://example.com/article",
+  "title": "Example article",
+  "description": "A useful example.",
+  "imageUrl": "https://example.com/cover.jpg",
+  "faviconUrl": "https://example.com/favicon.ico",
+  "siteName": "Example",
+  "author": "A. Writer",
+  "publishedAt": "2026-08-01",
+  "domain": "example.com",
+  "tags": ["reading", "example"],
+  "collectionId": null,
+  "favorite": true,
+  "archived": false,
+  "notes": "Read chapter two again.",
+  "createdAt": "2026-08-14T10:30:00+00:00",
+  "updatedAt": "2026-08-14T10:35:00+00:00",
+  "lastOpenedAt": null,
+  "openCount": 0,
+  "archive": {
+    "mode": "none",
+    "folder": null,
+    "updatedAt": null,
+    "htmlAvailable": false,
+    "textAvailable": false
+  }
+}
+```
+
+`archive.folder` is an opaque Shelf-generated identifier. Clients should not construct or depend on its format.
+
+### Collection
+
+```json
+{
+  "id": "22222222-2222-4222-8222-222222222222",
+  "name": "Reading",
+  "color": "#e46f4b",
+  "createdAt": "2026-08-14T10:00:00+00:00"
+}
+```
+
+Collection names are unique without regard to case. A missing or blank color uses `#e87752`.
+
+### SavedQuery
+
+```json
+{
+  "id": "33333333-3333-4333-8333-333333333333",
+  "name": "Rust tutorials",
+  "query": "#rust AND tutorial -video",
+  "createdAt": "2026-08-15T10:00:00+00:00",
+  "updatedAt": "2026-08-15T10:00:00+00:00"
+}
+```
+
+Saved-query names are unique without regard to case. Query text must contain valid supported terms/operators and balanced parentheses.
+
+### AppSnapshot
+
+Most mutation responses contain the complete current snapshot:
+
+```json
+{
+  "version": 4,
+  "bookmarks": [],
+  "collections": [],
+  "savedQueries": [],
+  "tags": [{"name": "reading", "count": 1}],
+  "dataPath": "/path/on/the/computer/library-file",
+  "dataDirectory": "/path/on/the/computer",
+  "dataFileName": "library-file",
+  "archiveDirectory": "/path/on/the/computer/saved-copies",
+  "pendingArchives": []
+}
+```
+
+`tags` contains derived tag usage counts. The path fields describe locations on the computer running Shelf. `pendingArchives` contains items such as:
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "mode": "html",
+  "queuedAt": "2026-08-14T10:34:00+00:00"
+}
+```
+
+## Discovery and health
+
+### `GET /`
+
+Returns an API discovery document from the listener root:
+
+```json
+{
+  "name": "Shelf API",
+  "version": "v1",
+  "basePath": "/api/v1",
+  "note": "The API is unauthenticated and respects Shelf's app lock.",
+  "resources": [
+    "snapshot",
+    "bookmarks",
+    "metadata",
+    "archives",
+    "saved queries",
+    "collections",
+    "security",
+    "storage",
+    "CSV import/export"
+  ]
+}
+```
+
+`GET /api/v1` returns the same document.
+
+### `GET /api/v1`
+
+Returns the same discovery document as `GET /` from the versioned API base path.
+
+### `GET /api/v1/health`
+
+Works while the app is locked and returns:
+
+```json
+{
+  "status": "ok",
+  "version": "v1",
+  "locked": false
+}
+```
+
+## Snapshot
+
+### `GET /api/v1/snapshot`
+
+Returns an `AppSnapshot`. It requires the app to be unlocked.
+
+## Bookmarks
+
+### `GET /api/v1/bookmarks`
+
+Returns a page of bookmarks, including archived bookmarks. Requires the app to be unlocked.
+
+Query parameters:
+
+- `offset`: non-negative integer, defaults to `0`; the number of bookmarks to skip.
+- `limit`: integer from `1` through `1,000`, defaults to `100`.
+
+Example:
+
+```sh
+curl "$BASE/bookmarks?offset=0&limit=100"
+```
+
+Response:
+
+```json
+{
+  "bookmarks": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "url": "https://example.com/article",
+      "title": "Example article"
+    }
+  ],
+  "offset": 0,
+  "limit": 100,
+  "total": 6910
+}
+```
+
+`total` is the full bookmark count at request time, independent of the page. Fetch the next page by adding `limit` to `offset`, and stop when the next offset is at least `total`. An offset at or beyond `total` returns an empty `bookmarks` array. If bookmarks change during traversal, offset-based pages can shift; restart when a consistent traversal is required.
+
+Errors: `400` malformed pagination or `limit` outside `1`–`1,000`; `423` locked.
+
+### `POST /api/v1/bookmarks`
+
+Creates one bookmark and returns an `AppSnapshot`.
+
+- Redirects are resolved before duplicate detection when reachable. If resolution is unavailable, the normalized input URL is retained.
+- Page metadata is fetched only when `fetchMetadata` is true.
+- `archiveMode: "html"` enables a saved copy and queues capture.
+- Errors: `400` invalid input, `409` duplicate URL, `423` locked, `502` requested metadata fetch failure.
+
+Example:
+
+```sh
+curl -X POST "$BASE/bookmarks" \
+  -H 'content-type: application/json' \
+  -d '{
+    "url": "https://example.com/article#introduction",
+    "title": "Example article",
+    "tags": ["Reading", "example"],
+    "favorite": true,
+    "fetchMetadata": true,
+    "metadataBehavior": "add-new-only",
+    "archiveMode": "none"
+  }'
+```
+
+### `POST /api/v1/bookmarks/batch`
+
+Request:
+
+```json
+{
+  "bookmarks": [
+    {
+      "url": "https://example.com/article",
+      "fetchMetadata": true,
+      "metadataBehavior": "add-new-only",
+      "tags": ["imported"]
+    },
+    {
+      "url": "https://example.org/guide",
+      "fetchMetadata": false
+    }
+  ]
+}
+```
+
+Creates 1–1,000 bookmarks atomically and returns an `AppSnapshot`. Every item uses `BookmarkDraft` plus the two API-only metadata fields. All URLs are validated and normalized before insertion. A duplicate against the existing library or within the batch, invalid input, or any requested metadata-fetch failure prevents the entire batch from being inserted. Saved-copy captures are queued after bookmark data is accepted.
+
+Errors: `400` for an empty/oversized batch or invalid input, `409` for duplicate URLs, `423` locked, and `502` for a requested metadata-fetch failure. Error messages identify the one-based item position when relevant.
+
+### `GET /api/v1/bookmarks/:id`
+
+Returns one `Bookmark`. Errors: `404` if missing, `423` locked.
+
+### `PUT /api/v1/bookmarks/:id`
+
+Replaces all editable bookmark fields using `BookmarkDraft` and returns an `AppSnapshot`. Send the complete desired editable state because omitted defaulted fields revert to their defaults. The path ID overrides a body `id`. Setting `archiveMode` to `html` queues a capture.
+
+Errors: `400` invalid input, `404` missing bookmark, `409` duplicate URL, `423` locked.
+
+### `DELETE /api/v1/bookmarks/:id`
+
+Deletes the bookmark, its pending saved-copy work, and its saved copy. Returns an `AppSnapshot`. Errors: `404` missing, `423` locked.
+
+### `PATCH /api/v1/bookmarks/:id/status`
+
+Request fields are optional; omitted flags remain unchanged:
+
+```json
+{
+  "favorite": true,
+  "archived": false
+}
+```
+
+Returns an `AppSnapshot`. Errors: `404` missing, `423` locked.
+
+### `POST /api/v1/bookmarks/:id/opened`
+
+Records a visit by incrementing `openCount` and setting `lastOpenedAt`. It does not open a browser for the API caller. Returns an `AppSnapshot`. Errors: `404` missing, `423` locked.
+
+## Metadata
+
+### `POST /api/v1/metadata`
+
+Fetches and parses metadata without changing the library.
+
+Request:
+
+```json
+{
+  "url": "https://example.com/article"
+}
+```
+
+Response:
+
+```json
+{
+  "url": "https://example.com/article",
+  "title": "Example article",
+  "description": "A useful example page.",
+  "imageUrl": "https://example.com/cover.jpg",
+  "faviconUrl": "https://example.com/favicon.ico",
+  "siteName": "Example",
+  "author": "A. Writer",
+  "publishedAt": "2026-08-01",
+  "domain": "example.com"
+}
+```
+
+Errors: `400` invalid URL/page response or page larger than the configured metadata limit (default 10 MB, adjustable in the desktop app's Miscellaneous settings); `502` mapped remote fetch or timeout failure. This endpoint works while the app is locked.
+
+### `POST /api/v1/bookmarks/:id/metadata`
+
+Refreshes the stored bookmark's URL and page metadata. Tags, collection, favorite/archive flags, and notes remain unchanged. The operation aborts if the bookmark changes while the request is running.
+
+Errors: `400` invalid data or oversized page, `404` missing bookmark, `409` duplicate final URL, `423` locked, `502` mapped remote fetch failure.
+
+## Saved copies and archive search
+
+Saved HTML copies can be enabled through bookmark create/replace with `archiveMode: "html"`, or captured directly with the archive endpoint. Capture may complete after the initiating bookmark request returns; inspect the bookmark's `archive` fields or `pendingArchives` in the snapshot.
+
+### `PUT /api/v1/bookmarks/:id/archive`
+
+Request:
+
+```json
+{
+  "mode": "html"
+}
+```
+
+`mode` defaults to `html`. Captures or refreshes the saved HTML copy and returns an `AppSnapshot` after the capture completes.
+
+Errors: `400` capture, filesystem, or page failure; `404` missing bookmark; `423` locked; `502` mapped remote fetch failure.
+
+### `DELETE /api/v1/bookmarks/:id/archive`
+
+Removes the saved copy, clears pending work, sets archive mode to `none`, and returns an `AppSnapshot`. Errors: `400` filesystem failure, `404` missing bookmark, `423` locked.
+
+### `GET /api/v1/bookmarks/:id/archive/html`
+
+Returns:
+
+```json
+{
+  "html": "<!doctype html><html><body>Saved page</body></html>",
+  "baseUrl": "https://example.com/article"
+}
+```
+
+Errors: `400` no saved copy is configured, `404` missing bookmark or unavailable copy, `423` locked.
+
+### `POST /api/v1/bookmarks/:id/archive/export`
+
+Request:
+
+```json
+{
+  "path": "/path/on/the/computer/example-article.html"
+}
+```
+
+Writes saved HTML to the specified path on the Shelf host and returns `{ "exported": true }`.
+
+Errors: `400` missing copy or host filesystem failure, `404` missing bookmark or unavailable copy, `423` locked.
+
+### `GET /api/v1/archives/search?q=...`
+
+Searches extracted text from saved copies. URL-encode `q`; a missing or blank query returns `[]`.
+
+Response:
+
+```json
+[
+  {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "score": 18.5
+  }
+]
+```
+
+Errors: `400` archive read failure, `423` locked.
+
+### `POST /api/v1/archives/process-pending`
+
+Processes currently queued saved-copy jobs at most once during the request and returns an `AppSnapshot`. Retryable individual capture failures remain pending; they do not fail the whole request. If processing is already active, the current snapshot is returned.
+
+Errors: `400` queue/state failure, `423` locked.
+
+## Saved queries
+
+Saved queries store a name and query text. They can contain tags, terms, `AND`, `OR`, parentheses, and exclusions such as `-video`. They are rerun against the current library when used.
+
+### `GET /api/v1/saved-queries`
+
+Returns saved queries in creation order. Errors: `423` locked.
+
+### `POST /api/v1/saved-queries`
+
+Request:
+
+```json
+{
+  "name": "Rust tutorials",
+  "query": "#rust AND tutorial -video"
+}
+```
+
+Creates a saved query and returns an `AppSnapshot`. Errors: `400` invalid name/query, `409` duplicate case-insensitive name, `423` locked.
+
+### `PUT /api/v1/saved-queries/:id`
+
+Replaces the name and query text. The path ID is authoritative. Returns an `AppSnapshot`. Errors: `400` invalid input, `404` missing query, `409` duplicate name, `423` locked.
+
+### `DELETE /api/v1/saved-queries/:id`
+
+Deletes a saved query without changing bookmarks and returns an `AppSnapshot`. Errors: `404` missing query, `423` locked.
+
+## Collections
+
+### `GET /api/v1/collections`
+
+Returns an array of `Collection` objects. Errors: `423` locked.
+
+### `POST /api/v1/collections`
+
+Request:
+
+```json
+{
+  "name": "Reading",
+  "color": "#e46f4b"
+}
+```
+
+Creates a collection and returns an `AppSnapshot`. `name` is required; blank/missing `color` defaults to `#e87752`. Errors: `400` blank/invalid name, `409` duplicate case-insensitive name, `423` locked.
+
+### `PUT /api/v1/collections/:id`
+
+Replaces a collection's name and color and returns an `AppSnapshot`. The path ID overrides a body `id`. Errors: `400` invalid input, `404` missing collection, `409` duplicate name, `423` locked.
+
+### `DELETE /api/v1/collections/:id`
+
+Deletes the collection, detaches its bookmarks by setting `collectionId` to `null`, and returns an `AppSnapshot`. Errors: `404` missing collection, `423` locked.
+
+## App lock
+
+The app lock is optional access control for the running Shelf application. It is not encryption at rest. Discovery, health, security status, lock, and unlock remain available while locked; library operations return `423 Locked`.
+
+### `GET /api/v1/security`
+
+Returns:
+
+```json
+{
+  "passwordConfigured": true,
+  "timeoutMinutes": 15,
+  "locked": false
+}
+```
+
+### `PUT /api/v1/security`
+
+Enables, changes, or removes the password. `timeoutMinutes` is required and must be 1–1,440. Passwords must contain 8–1,024 Unicode characters.
+
+Request shape:
+
+```json
+{
+  "currentPassword": "existing password or null",
+  "newPassword": "new password or null",
+  "timeoutMinutes": 15,
+  "removePassword": false
+}
+```
+
+When changing or removing an existing password, provide `currentPassword`. To change only the timeout, omit `newPassword`. To remove the lock, set `removePassword` to `true` and provide the current password. Returns the security status object.
+
+Errors: `400` invalid timeout/password/current credentials or invalid removal request; `423` an existing lock is currently locked.
+
+### `POST /api/v1/security/lock`
+
+Locks Shelf immediately when a password is configured and returns the security status object. With no password configured, Shelf remains unlocked.
+
+### `POST /api/v1/security/unlock`
+
+Request:
+
+```json
+{
+  "password": "correct horse battery staple"
+}
+```
+
+With a configured password, unlocks Shelf and returns the current `AppSnapshot`. With no password configured, it returns the current snapshot without requiring a password. Errors: `400` incorrect password or invalid stored settings.
+
+## Storage and CSV
+
+These operations use paths on the computer running Shelf. They do not open native file dialogs.
+
+### `PUT /api/v1/storage`
+
+Request:
+
+```json
+{
+  "directory": "/path/on/the/computer/Shelf",
+  "fileName": "bookmarks-library",
+  "overwrite": false
+}
+```
+
+Moves the active library and saved copies to the requested location and returns an `AppSnapshot` with the updated paths. The directory must be absolute, and the library filename is normalized when needed. Errors: `400` invalid path/name or copy/write failure, `409` target exists and `overwrite` is false, `423` locked.
+
+### `POST /api/v1/import/csv`
+
+Request:
+
+```json
+{
+  "path": "/path/on/the/computer/bookmarks.csv"
+}
+```
+
+Imports a Shelf-compatible CSV file. A URL column is required; accepted aliases include `url`, `link`, and `uri`. Other accepted aliases include title/name, description/summary, collection/folder/group, tags/labels/keywords, and favorite/favourite/starred.
+
+The entire file is parsed and validated before mutation. Rows with invalid URLs, timestamps, booleans, or visit counts are skipped. Repeated normalized URLs are merged, including their tag union, before existing bookmarks are updated; missing collections are created.
+
+Response:
+
+```json
+{
+  "imported": 12,
+  "updated": 3,
+  "skipped": 1
+}
+```
+
+The desktop UI additionally supports selecting Raindrop.io as an import source. This API endpoint accepts the Shelf-compatible CSV format. Errors: `400` file/CSV failure, `423` locked.
+
+### `POST /api/v1/export/csv`
+
+Request:
+
+```json
+{
+  "path": "/path/on/the/computer/shelf-bookmarks.csv"
+}
+```
+
+Exports all bookmarks to the specified host path. Collection IDs are represented as collection names, and tags are joined with `|`.
+
+Response:
+
+```json
+{
+  "exported": 42
+}
+```
+
+Errors: `400` host file, write, or CSV failure; `423` locked.
+
+## Errors
+
+Application errors use:
+
+```json
+{
+  "error": "That bookmark no longer exists"
+}
+```
+
+| Status | Meaning |
+| --- | --- |
+| `200 OK` | Request completed successfully. |
+| `400 Bad Request` | Validation, credentials, URL, storage, CSV, saved-copy, or general operation failure; may also indicate malformed JSON. |
+| `404 Not Found` | Resource or route does not exist. |
+| `409 Conflict` | Duplicate bookmark URL, duplicate collection/query name, or existing storage target without overwrite approval. |
+| `413 Payload Too Large` | Request body exceeded the server body limit. |
+| `415 Unsupported Media Type` | JSON endpoint did not receive `application/json`. |
+| `422 Unprocessable Entity` | JSON was valid but did not match the request schema. |
+| `423 Locked` | Protected library data is unavailable while Shelf is locked. |
+| `502 Bad Gateway` | A mapped remote page fetch or timeout failure occurred. |
+| `405 Method Not Allowed` | The HTTP method is not supported for the route. |
+
+Routing, method, query, and JSON extraction failures may be plain-text responses rather than the JSON error object.
+
+## Operational behavior clients should handle
+
+- The API server must be enabled in the desktop app before requests can succeed.
+- Metadata fetches and saved-page captures contact remote URLs from the Shelf computer.
+- A successful bookmark request with `archiveMode: "html"` can return before the saved copy is ready; check `archive.htmlAvailable`, `archive.textAvailable`, or `pendingArchives`.
+- Batch creation is atomic: do not assume partial success when one item fails.
+- Import and export paths are interpreted by the Shelf computer and may require permissions available to that process.
+- Do not expose a non-local listener to an untrusted network because the API has no authentication or TLS.

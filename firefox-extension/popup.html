@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Save to Shelf</title>
+    <link rel="stylesheet" href="popup.css" />
+    <script src="popup.js" defer></script>
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="popup-header">
+        <div class="brand">
+          <img class="brand-mark" src="icons/64x64.png" alt="" />
+          <div class="brand-copy">
+            <strong>Shelf</strong>
+            <span>Save this corner of the web</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <span id="connection-indicator" class="connection-indicator unknown" title="Shelf API connection is not checked" aria-hidden="true"></span>
+          <button id="toggle-config" class="icon-button" type="button" aria-label="Configure Shelf API" aria-expanded="false" title="Configure Shelf API">⚙</button>
+        </div>
+      </header>
+
+      <section id="config-panel" class="config-panel" hidden>
+        <form id="config-form">
+          <div class="config-heading">
+            <div>
+              <h2>Shelf API</h2>
+              <p>Connect this popup to the API server running with Shelf.</p>
+            </div>
+            <button id="close-config" class="close-config" type="button" aria-label="Close API configuration">Done</button>
+          </div>
+          <div class="field">
+            <label for="api-base-url">API base URL</label>
+            <input id="api-base-url" class="input" name="apiBaseUrl" type="text" inputmode="url" spellcheck="false" autocomplete="url" placeholder="http://localhost:9876/api/v1" required />
+            <div class="field-hint">The <code>/api/v1</code> path is added when you enter only the server address.</div>
+          </div>
+          <div id="config-status" class="status" role="status" aria-live="polite" hidden></div>
+          <div class="config-actions">
+            <span class="config-note">Saved only in Firefox on this device.</span>
+            <button id="save-config" class="btn btn-primary btn-compact" type="submit">Save configuration</button>
+          </div>
+        </form>
+      </section>
+
+      <div id="connection-banner" class="connection-banner" role="status" aria-live="polite" hidden></div>
+
+      <form id="bookmark-form" class="bookmark-form">
+        <div class="field">
+          <label for="bookmark-url">Web address <span class="optional">required</span></label>
+          <div class="input-with-action">
+            <input id="bookmark-url" class="input" name="url" type="text" spellcheck="false" autocomplete="url" placeholder="example.com/article" required />
+            <button id="fetch-metadata" class="btn btn-secondary btn-compact" type="button">✦ Fetch details</button>
+          </div>
+          <div class="field-hint">The current tab is filled in automatically. Title and description can stay empty.</div>
+          <div id="metadata-status" class="status" role="status" aria-live="polite" hidden></div>
+        </div>
+
+        <div class="field field-spaced">
+          <label for="bookmark-title">Title <span class="optional">optional</span></label>
+          <input id="bookmark-title" class="input" name="title" type="text" autocomplete="off" placeholder="Page title" />
+        </div>
+
+        <div class="field field-spaced">
+          <label for="bookmark-description">Description <span class="optional">optional</span></label>
+          <textarea id="bookmark-description" class="textarea" name="description" rows="2" placeholder="A short summary of what is here"></textarea>
+        </div>
+
+        <div class="form-grid field-spaced">
+          <div class="field">
+            <label for="bookmark-collection">Collection</label>
+            <div class="select-with-action">
+              <select id="bookmark-collection" class="select" name="collectionId" aria-label="Collection">
+                <option value="">No collection</option>
+              </select>
+              <button id="refresh-collections" class="icon-button field-action" type="button" aria-label="Refresh collections" title="Refresh collections">↻</button>
+            </div>
+            <div class="field-hint">Loaded from your Shelf library.</div>
+          </div>
+
+          <div class="field">
+            <label for="bookmark-tags">Tags <span class="optional">optional</span></label>
+            <input id="bookmark-tags" class="input" name="tags" type="text" autocomplete="off" placeholder="reading, rust" />
+            <div class="field-hint">Separate tags with commas.</div>
+          </div>
+        </div>
+
+        <div class="field field-spaced">
+          <label for="bookmark-notes">Personal notes <span class="optional">optional</span></label>
+          <textarea id="bookmark-notes" class="textarea" name="notes" rows="2" placeholder="Why did you save this? A quote, an idea, a reminder…"></textarea>
+        </div>
+
+        <div class="switch-list field-spaced" aria-label="Bookmark options">
+          <label class="switch-card" for="save-offline-copy">
+            <span class="switch-copy"><strong>Save Offline Copy</strong><small>Keep a raw HTML copy in Shelf.</small></span>
+            <input id="save-offline-copy" type="checkbox" name="saveOfflineCopy" role="switch" />
+            <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+          </label>
+          <div class="switch-grid">
+            <label class="switch-card" for="bookmark-favorite">
+              <span class="switch-copy"><strong>Favorite</strong><small>Keep it close.</small></span>
+              <input id="bookmark-favorite" type="checkbox" name="favorite" role="switch" />
+              <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+            </label>
+            <label class="switch-card" for="bookmark-archived">
+              <span class="switch-copy"><strong>Archive</strong><small>Hide from the main shelf.</small></span>
+              <input id="bookmark-archived" type="checkbox" name="archived" role="switch" />
+              <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+
+        <div id="save-status" class="status save-status" role="status" aria-live="polite" hidden></div>
+        <div class="form-actions">
+          <span class="action-note">Saved through your configured Shelf API.</span>
+          <button id="save-bookmark" class="btn btn-primary save-button" type="submit">Save bookmark <span aria-hidden="true">→</span></button>
+        </div>
+      </form>
+    </main>
+  </body>
+</html>

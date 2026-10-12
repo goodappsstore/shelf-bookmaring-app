@@ -2,6 +2,16 @@
 
 Shelf is a local-first desktop bookmark library built with Rust and Tauri 2. Paste a URL and it can retrieve the page title, description, Open Graph image, favicon, site name, author, and publication date.
 
+## Screenshots
+
+### Bookmark library in grid view
+
+![Shelf — Bookmark library in grid view](screenshots/homepage-grid-view.png)
+
+### Add a new bookmark
+
+![Shelf — Add a new bookmark](screenshots/add-new-bookmark-dialog.png)
+
 ## Features
 
 See [PRODUCT_FEATURES.md](PRODUCT_FEATURES.md) for a customer-focused overview or [FEATURES.md](FEATURES.md) for the complete technical feature catalog and current product boundaries.

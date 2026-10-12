@@ -131,6 +131,10 @@ The optional API server is disabled by default and can be configured under **Set
 
 The application code does not call platform-specific shells or hard-code paths. Tauri resolves the app data directory, native file dialogs, URL opening, and installer formats for each target. Network fetching uses Rustls, avoiding an OpenSSL runtime dependency. Build Windows installers on Windows and Linux packages on Linux (or use CI), since native Tauri bundles are normally produced on their target OS.
 
+## AI Assistance
+
+Heavy AI assistance used. Not vibe-coded.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
